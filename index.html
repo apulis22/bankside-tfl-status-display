@@ -4,88 +4,99 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>London Transport Status</title>
+    <title>TFL Status</title>
+    <link href="https://fonts.cdnfonts.com/css/london-tube" rel="stylesheet">
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'London Tube', Arial, sans-serif;
             background-color: #fff;
             color: #000;
-            padding: 20px;
+            padding: 32px;
             text-align: center;
+            font-size: 24px;
         }
 
         h1,
         h2 {
-            margin-bottom: 20px;
+            font-family: 'London Tube', Arial, sans-serif;
+            margin: 24px 0 24px;
         }
-
         .grid-container {
-            column-count: 2;
-            column-gap: 24px;
-            max-width: 800px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
             margin: 0 auto;
         }
-
 
         .status-item {
             break-inside: avoid;
-            margin-bottom: 12px;
-            padding: 10px;
+            padding: 12px;
             border-radius: 6px;
             background: #f1f1f1;
-            text-align: left;
             width: 100%;
+            height: 100%;
+            box-sizing: border-box;
         }
 
+        .status-item.disrupted {
+            background: #fbbcbc86;
+        }
+
+        .status-content {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .status-header {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            text-align: left;
+            gap: 20px;
+        }
 
         .line-name {
-            display: inline-block;
-            width: 180px;
-            text-align: center;
+            width: 238px;
             padding: 5px 10px;
             border-radius: 4px;
             font-weight: bold;
-            margin-right: 8px;
+            text-align: center;
             color: white;
         }
 
-        .status-text {
-            display: inline-block;
-            color: #000;
+        .line-status.disrupted {
+            color: #c62828;
+            font-weight: bold;
         }
 
         .train-status {
-            max-width: 500px;
             margin: 0 auto;
+            display: flex;
+            flex-direction: row;
+            gap: 16px;
+            justify-content: center;
         }
 
         .train-status .status-item {
             margin: 12px 0;
         }
 
-        .good {
-            font-weight: normal;
-        }
-
-        .minor {
-            font-weight: bold;
-        }
-
-        .disrupted {
-            font-weight: bold;
-            color: #c62828;
+        .next-update {
+            margin-top: 20px;
+            text-align: end;
+            font-size: 24px;
+            color: #888;
         }
     </style>
 </head>
 
 <body>
-    <h1>London Transport Status</h1>
-
-    <h2>Tube Lines</h2>
-    <div id="tube-status" class="grid-container">Loading...</div>
-
-    <h2>Train Stations</h2>
-    <div id="train-status" class="train-status">Loading...</div>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+        <h1 id="main-title" style="margin: 0;">TFL Status</h1>
+        <div class="next-update" id="next-update" style="margin: 0; text-align: right;">Next update in: 60s</div>
+    </div>
+    <div id="content"></div>
 
     <script>
         const tflColors = {
@@ -102,7 +113,6 @@
             'Waterloo & City': { bg: '#76D0BD', color: '#0019A8' },
             'Elizabeth line': { bg: '#60399E' },
             'DLR': { bg: '#00AFAD' },
-            // Overground sub-lines
             'Liberty': { bg: '#5D6061' },
             'Lioness': { bg: '#FAA61A' },
             'Mildmay': { bg: '#0077AD' },
@@ -111,87 +121,158 @@
             'Windrush': { bg: '#ED1B00' },
         };
 
-        const tubeContainer = document.getElementById('tube-status');
-        const trainContainer = document.getElementById('train-status');
-
-        async function fetchTubeStatus() {
-            try {
-                const res = await fetch('https://api.tfl.gov.uk/Line/Mode/tube,dlr,overground,elizabeth-line/Status');
-                const data = await res.json();
-                tubeContainer.innerHTML = '';
-
-                const displayOrder = [
-                    'Bakerloo', 'Central', 'Circle', 'District', 'Hammersmith & City', 'Jubilee',
-                    'Metropolitan', 'Northern', 'Piccadilly', 'Victoria', 'Waterloo & City',
-                    'Elizabeth line', 'DLR',
-                    'Liberty', 'Lioness', 'Mildmay', 'Suffragette', 'Weaver', 'Windrush'
-                ];
-
-                data.sort((a, b) => {
-                    return displayOrder.indexOf(a.name) - displayOrder.indexOf(b.name);
-                });
-
-                data.forEach(line => {
-                    const lineColor = tflColors[line.name] || { bg: '#666' };
-                    const status = line.lineStatuses[0]?.statusSeverityDescription || 'Unknown';
-
-                    const div = document.createElement('div');
-                    div.className = 'status-item';
-
-                    const nameSpan = `<span class="line-name" style="background:${lineColor.bg};color:${lineColor.color || '#fff'}">${line.name}</span>`;
-                    const statusSpan = `<span class="status-text">${status}</span>`;
-
-                    div.innerHTML = nameSpan + statusSpan;
-                    tubeContainer.appendChild(div);
-                });
-            } catch (err) {
-                tubeContainer.innerHTML = 'Failed to load Tube data.';
-                console.error(err);
-            }
-        }
-
         const stations = ['Blackfriars', 'Waterloo', 'London Bridge'];
 
+        let tubeData = [];
+        let trainData = [];
+        let countdown = 60;
+        let showingDisruptions = false;
+
+        const contentContainer = document.getElementById('content');
+        const nextUpdateContainer = document.getElementById('next-update');
+
+        async function fetchTubeStatus() {
+            const res = await fetch('https://api.tfl.gov.uk/Line/Mode/tube,dlr,overground,elizabeth-line/Status');
+            tubeData = await res.json();
+        }
+
         async function fetchTrainStatus() {
-            try {
-                trainContainer.innerHTML = '';
-                for (const station of stations) {
-                    const res = await fetch(`https://api.tfl.gov.uk/StopPoint/Search/${encodeURIComponent(station)}?modes=national-rail`);
-                    const data = await res.json();
-                    const match = data.matches?.[0];
+            const results = [];
+            for (const station of stations) {
+                const res = await fetch(`https://api.tfl.gov.uk/StopPoint/Search/${encodeURIComponent(station)}?modes=national-rail`);
+                const data = await res.json();
+                const match = data.matches?.[0];
+                if (!match) continue;
 
-                    if (!match) continue;
+                const stopPointId = match.id;
+                const disruptionRes = await fetch(`https://api.tfl.gov.uk/StopPoint/${stopPointId}/Disruption`);
+                const disruptions = await disruptionRes.json();
 
-                    const stopPointId = match.id;
-                    const disruptionRes = await fetch(`https://api.tfl.gov.uk/StopPoint/${stopPointId}/Disruption`);
-                    const disruptions = await disruptionRes.json();
+                results.push({ station, disruptions });
+            }
+            trainData = results;
+        }
 
-                    const div = document.createElement('div');
-                    div.className = 'status-item';
+        function renderOverview() {
+            document.getElementById('main-title').textContent = 'TFL Status';
+            contentContainer.innerHTML = `
+                <h2>Tube Lines</h2>
+                <div class="grid-container">${renderTubeLines(false)}</div>
+                <h2>Train Stations</h2>
+                <div class="train-status">${renderTrainLines(false)}</div>
+            `;
+        }
 
-                    if (disruptions.length === 0) {
-                        div.classList.add('good');
-                        div.innerHTML = `<strong>${station}</strong>: Good Service`;
-                    } else {
-                        div.classList.add('disrupted');
-                        div.innerHTML = `<strong>${station}</strong>: ${disruptions[0].description}`;
-                    }
+        function renderDisruptionsOnly() {
+            document.getElementById('main-title').textContent = 'Disruptions';
+            // Filter disrupted tube lines
+            const disruptedTubeLines = tubeData.filter(line => {
+                const statusObj = line.lineStatuses[0];
+                return statusObj?.statusSeverity !== 10;
+            });
 
-                    trainContainer.appendChild(div);
-                }
-            } catch (err) {
-                trainContainer.innerHTML = 'Failed to load train station data.';
-                console.error(err);
+            // Filter disrupted train stations
+            const disruptedTrainStations = trainData.filter(item => item.disruptions.length > 0);
+
+            let html = '';
+
+            if (disruptedTubeLines.length > 0) {
+                html += `
+                    <h2>Tube Lines</h2>
+                    <div class="grid-container">${renderTubeLines(true)}</div>
+                `;
+            }
+
+            if (disruptedTrainStations.length > 0) {
+                html += `
+                    <h2>Train Stations</h2>
+                    <div class="train-status">${renderTrainLines(true)}</div>
+                `;
+            }
+
+            // If no disruptions at all, show a message
+            if (disruptedTubeLines.length === 0 && disruptedTrainStations.length === 0) {
+                html += `<div>No disruptions at this time.</div>`;
+            }
+
+            contentContainer.innerHTML = html;
+        }
+
+        function renderTubeLines(showReason) {
+            const displayOrder = [
+                'Bakerloo', 'Central', 'Circle', 'District', 'Hammersmith & City', 'Jubilee',
+                'Metropolitan', 'Northern', 'Piccadilly', 'Victoria', 'Waterloo & City',
+                'Elizabeth line', 'DLR', 'Liberty', 'Lioness', 'Mildmay', 'Suffragette', 'Weaver', 'Windrush'
+            ];
+
+            return tubeData
+                .sort((a, b) => displayOrder.indexOf(a.name) - displayOrder.indexOf(b.name))
+                .map(line => {
+                    const lineColor = tflColors[line.name] || { bg: '#666' };
+                    const statusObj = line.lineStatuses[0];
+                    const statusSeverity = statusObj?.statusSeverity;
+                    const status = statusObj?.statusSeverityDescription || 'Unknown';
+                    let reason = statusObj?.reason || '';
+                    reason = reason.replace(/^.*?:\s*/, '');
+                    const isDisrupted = statusSeverity !== 10;
+
+                    if (showReason && !isDisrupted) return '';
+
+                    return `
+                        <div class="status-item ${isDisrupted ? 'disrupted' : ''} ${showReason && isDisrupted ? 'disruption-detailed' : ''}">
+                            <div class="status-content">
+                                <div class="status-header">
+                                    <span class="line-name" style="background:${lineColor.bg};color:${lineColor.color || '#fff'}">${line.name}</span>
+                                    <span class="line-status ${isDisrupted ? 'disrupted' : ''}">${status}</span>
+                                </div>
+                                ${showReason && reason ? `<div style="text-align: left;">${reason}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                })
+                .join('');
+        }
+
+        function renderTrainLines(showReason) {
+            return trainData
+                .filter(item => !showReason || item.disruptions.length > 0)
+                .map(item => {
+                    const disruption = item.disruptions[0];
+                    const isDisrupted = item.disruptions.length > 0;
+                    return `
+                        <div class="status-item ${isDisrupted ? 'disrupted' : ''} ${showReason && isDisrupted ? 'disruption-detailed' : ''}">
+                            <strong>${item.station}</strong>: ${isDisrupted ? disruption.description : 'Good Service'}
+                        </div>
+                    `;
+                })
+                .join('');
+        }
+
+        function updateCountdown() {
+            if (countdown > 0) {
+                countdown--;
+                nextUpdateContainer.innerHTML = `Next update in: ${countdown}s`;
+            } else {
+                updateAll();
+                countdown = 60;
             }
         }
 
-        function updateAll() {
-            fetchTubeStatus();
-            fetchTrainStatus();
+        function flipView() {
+            showingDisruptions = !showingDisruptions;
+            showingDisruptions ? renderDisruptionsOnly() : renderOverview();
+        }
+
+        async function updateAll() {
+            await fetchTubeStatus();
+            await fetchTrainStatus();
+            flipView();
         }
 
         updateAll();
-        setInterval(updateAll, 60000); // refresh every 60 seconds
+        setInterval(updateCountdown, 1000);
+        setInterval(flipView, 15000);
+        setInterval(updateAll, 60000);
     </script>
 </body>
 
