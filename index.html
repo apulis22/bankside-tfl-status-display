@@ -74,14 +74,12 @@
             width: 238px;
             padding: 5px 10px;
             border-radius: 4px;
-            font-weight: bold;
             text-align: center;
             color: white;
         }
 
         .line-status.disrupted {
             color: #c62828;
-            font-weight: bold;
         }
 
         .train-status {
@@ -291,12 +289,14 @@
         async function updateAll() {
             await fetchTubeStatus();
             await fetchTrainStatus();
-            flipView();
+            // Show overview first after data loads
+            showingDisruptions = false;
+            renderOverview();
         }
 
         updateAll();
         setInterval(updateCountdown, 1000);
-        setInterval(flipView, 15000);
+        setInterval(flipView, 7000);
         setInterval(updateAll, 60000);
     </script>
 </body>
