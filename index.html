@@ -11,7 +11,7 @@
             font-family: 'London Tube', Arial, sans-serif;
             background-color: #fff;
             color: #000;
-            padding: 32px;
+            padding: 24px;
             text-align: center;
             font-size: 24px;
         }
@@ -21,10 +21,20 @@
             font-family: 'London Tube', Arial, sans-serif;
             margin: 24px 0 24px;
         }
+
+        h1 {
+            font-size: 36px;
+        }
+
+        h2 {
+            font-size: 30px;
+            margin: 16px 0 16px;
+        }
+
         .grid-container {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 16px;
+            gap: 12px;
             margin: 0 auto;
         }
 
@@ -74,7 +84,7 @@
             margin: 0 auto;
             display: flex;
             flex-direction: row;
-            gap: 16px;
+            gap: 12px;
             justify-content: center;
         }
 
@@ -205,8 +215,23 @@
                 'Elizabeth line', 'DLR', 'Liberty', 'Lioness', 'Mildmay', 'Suffragette', 'Weaver', 'Windrush'
             ];
 
-            return tubeData
+            // Sort by displayOrder and filter if needed
+            const sorted = tubeData
                 .sort((a, b) => displayOrder.indexOf(a.name) - displayOrder.indexOf(b.name))
+                .filter(line => !(showReason && line.lineStatuses[0]?.statusSeverity === 10 || !line.lineStatuses[0]));
+
+            // Transpose for column-major order (2 columns)
+            const columns = 2;
+            const rows = Math.ceil(sorted.length / columns);
+            let transposed = [];
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < columns; col++) {
+                    const idx = col * rows + row;
+                    if (sorted[idx]) transposed.push(sorted[idx]);
+                }
+            }
+
+            return transposed
                 .map(line => {
                     const lineColor = tflColors[line.name] || { bg: '#666' };
                     const statusObj = line.lineStatuses[0];
