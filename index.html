@@ -22,6 +22,10 @@
             margin: 24px 0 24px;
         }
 
+        h2.train-stations-title {
+            margin-top: 24px;
+        }
+
         h1 {
             font-size: 36px;
         }
@@ -86,10 +90,6 @@
             flex-direction: row;
             gap: 12px;
             justify-content: center;
-        }
-
-        .train-status .status-item {
-            margin: 12px 0;
         }
 
         .next-update {
@@ -168,7 +168,7 @@
             contentContainer.innerHTML = `
                 <h2>Tube Lines</h2>
                 <div class="grid-container">${renderTubeLines(false)}</div>
-                <h2>Train Stations</h2>
+                <h2 class="train-stations-title">Train Stations</h2>
                 <div class="train-status">${renderTrainLines(false)}</div>
             `;
         }
@@ -195,7 +195,7 @@
 
             if (disruptedTrainStations.length > 0) {
                 html += `
-                    <h2>Train Stations</h2>
+                    <h2 class="train-stations-title">Train Stations</h2>
                     <div class="train-status">${renderTrainLines(true)}</div>
                 `;
             }
